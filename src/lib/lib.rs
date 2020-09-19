@@ -5,6 +5,7 @@ mod mac;
 mod net_state;
 mod netlink;
 mod route;
+mod route_rule;
 
 pub use crate::error::NisporError;
 pub use crate::ifaces::BondInfo;
