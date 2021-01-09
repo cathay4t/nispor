@@ -190,9 +190,11 @@ fn apply_conf(file_path: &str) -> CliResult {
             })
         }
     };
-    if let Err(e) = net_conf.apply() {
-        return CliResult::NisporError(e);
-    }
+    match net_conf.apply() {
+        Ok(true) => eprintln!("Network changed"),
+        Ok(false) => eprintln!("Network unchanged"),
+        Err(e) => return CliResult::NisporError(e),
+    };
     if let Some(desire_ifaces) = net_conf.ifaces {
         match NetState::retrieve() {
             Ok(cur_state) => {

@@ -25,8 +25,6 @@ use crate::ifaces::vrf::VrfSubordinateInfo;
 use crate::ifaces::vxlan::get_vxlan_info;
 use crate::ifaces::vxlan::VxlanInfo;
 use crate::mac::parse_as_mac;
-use crate::IpConf;
-use crate::IpFamily;
 use crate::Ipv4Info;
 use crate::Ipv6Info;
 use crate::NisporError;
@@ -38,8 +36,6 @@ use netlink_packet_route::rtnl::{
     IFF_NOARP, IFF_POINTOPOINT, IFF_PORTSEL, IFF_PROMISC, IFF_RUNNING,
     IFF_SLAVE, IFF_UP,
 };
-use rtnetlink::new_connection;
-
 use rtnetlink::packet::rtnl::link::nlas::Nla;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -70,6 +66,12 @@ impl Default for IfaceType {
     }
 }
 
+impl std::fmt::Display for IfaceType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, PartialEq, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum IfaceState {
@@ -77,6 +79,7 @@ pub enum IfaceState {
     Dormant,
     Down,
     LowerLayerDown,
+    Absent, // Used for removing interface only
     Other(String),
     Unknown,
 }
@@ -84,6 +87,12 @@ pub enum IfaceState {
 impl Default for IfaceState {
     fn default() -> Self {
         IfaceState::Unknown
+    }
+}
+
+impl std::fmt::Display for IfaceState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
     }
 }
 
@@ -453,39 +462,4 @@ fn _parse_iface_flags(flags: u32) -> Vec<IfaceFlags> {
     }
 
     ret
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Clone, Default)]
-pub struct IfaceConf {
-    pub name: String,
-    pub iface_type: Option<IfaceType>,
-    pub ipv4: Option<IpConf>,
-    pub ipv6: Option<IpConf>,
-}
-
-impl IfaceConf {
-    // pub async fn create() { }
-    pub async fn apply(&self, cur_iface: &Iface) -> Result<(), NisporError> {
-        let (connection, handle, _) = new_connection()?;
-        tokio::spawn(connection);
-        if let Some(ipv6_conf) = &self.ipv6 {
-            ipv6_conf.apply(&handle, &cur_iface, IpFamily::Ipv6).await?;
-        } else {
-            IpConf {
-                addresses: Vec::new(),
-            }
-            .apply(&handle, &cur_iface, IpFamily::Ipv6)
-            .await?;
-        }
-        if let Some(ipv4_conf) = &self.ipv4 {
-            ipv4_conf.apply(&handle, &cur_iface, IpFamily::Ipv4).await?;
-        } else {
-            IpConf {
-                addresses: Vec::new(),
-            }
-            .apply(&handle, &cur_iface, IpFamily::Ipv4)
-            .await?;
-        }
-        Ok(())
-    }
 }

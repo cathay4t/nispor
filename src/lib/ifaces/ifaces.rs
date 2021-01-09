@@ -15,15 +15,14 @@ use netlink_packet_route::rtnl::constants::AF_BRIDGE;
 use netlink_packet_route::rtnl::constants::AF_UNSPEC;
 use netlink_sys::constants::RTEXT_FILTER_BRVLAN_COMPRESSED;
 use netlink_sys::constants::RTEXT_FILTER_VF;
-use rtnetlink::new_connection;
+use rtnetlink::{new_connection, Handle};
 use std::collections::HashMap;
 use tokio::runtime::Runtime;
 
-async fn _get_ifaces() -> Result<HashMap<String, Iface>, NisporError> {
+pub(crate) async fn get_ifaces_with_handle(
+    handle: &Handle,
+) -> Result<HashMap<String, Iface>, NisporError> {
     let mut iface_states: HashMap<String, Iface> = HashMap::new();
-    let (connection, handle, _) = new_connection()?;
-    tokio::spawn(connection);
-
     let mut links = handle
         .link()
         .get()
@@ -51,8 +50,14 @@ async fn _get_ifaces() -> Result<HashMap<String, Iface>, NisporError> {
     Ok(iface_states)
 }
 
+async fn _get_ifaces_async() -> Result<HashMap<String, Iface>, NisporError> {
+    let (connection, handle, _) = new_connection()?;
+    tokio::spawn(connection);
+    get_ifaces_with_handle(&handle).await
+}
+
 pub(crate) fn get_ifaces() -> Result<HashMap<String, Iface>, NisporError> {
-    Ok(Runtime::new()?.block_on(_get_ifaces())?)
+    Ok(Runtime::new()?.block_on(_get_ifaces_async())?)
 }
 
 fn tidy_up(iface_states: &mut HashMap<String, Iface>) {

@@ -60,7 +60,7 @@ pub struct IpAddrConf {
 }
 
 impl IpConf {
-    pub async fn apply(
+    pub(crate) async fn apply(
         &self,
         handle: &rtnetlink::Handle,
         cur_iface: &Iface,

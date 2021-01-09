@@ -1,11 +1,27 @@
-use nispor::{NetConf, NetState};
+use nispor::{IfaceState, NetConf, NetState, VethInfo};
 use pretty_assertions::assert_eq;
 use serde_yaml;
 use std::panic;
 
-mod utils;
-
 const IFACE_NAME: &str = "veth1";
+
+const CREATE_VETH1: &str = r#"---
+ifaces:
+  - name: veth1
+    type: veth
+    mac_address: "00:23:45:67:89:1a"
+    veth:
+      peer: veth1.ep"#;
+
+const DELETE_VETH1: &str = r#"---
+ifaces:
+  - name: veth1
+    state: absent"#;
+
+const DOWN_VETH1: &str = r#"---
+ifaces:
+  - name: veth1
+    state: down"#;
 
 const EXPECTED_IFACE_STATE: &str = r#"---
 - name: veth1
@@ -46,13 +62,14 @@ fn with_veth_iface<T>(test: T) -> ()
 where
     T: FnOnce() -> () + panic::UnwindSafe,
 {
-    utils::set_network_environment("veth");
-
+    let net_conf: NetConf = serde_yaml::from_str(CREATE_VETH1).unwrap();
+    assert!(net_conf.apply().unwrap()); // return ture for state changed
     let result = panic::catch_unwind(|| {
         test();
     });
 
-    utils::clear_network_environment();
+    let net_conf: NetConf = serde_yaml::from_str(DELETE_VETH1).unwrap();
+    assert!(net_conf.apply().unwrap()); // return ture for state changed
     assert!(result.is_ok())
 }
 
@@ -122,6 +139,58 @@ fn test_veth_add_and_remove_ip() {
         );
         let conf: NetConf = serde_yaml::from_str(EMPTY_IP_CONF).unwrap();
         conf.apply().unwrap();
+        let state = NetState::retrieve().unwrap();
+        let iface = &state.ifaces[IFACE_NAME];
+        let iface_type = &iface.iface_type;
+        assert_eq!(iface_type, &nispor::IfaceType::Veth);
+        assert_eq!(
+            serde_yaml::to_string(&vec![iface]).unwrap(),
+            EXPECTED_IFACE_STATE
+        );
+    });
+}
+
+#[test]
+fn test_veth_bring_iface_down() {
+    with_veth_iface(|| {
+        let conf: NetConf = serde_yaml::from_str(DOWN_VETH1).unwrap();
+        assert!(conf.apply().unwrap()); // true for net state changed
+        let state = NetState::retrieve().unwrap();
+        let iface = &state.ifaces[IFACE_NAME];
+        assert_eq!(iface.state, IfaceState::Down);
+    });
+}
+
+const CHANGE_PEER_VETH1: &str = r#"---
+ifaces:
+  - name: veth1
+    type: veth
+    mac_address: "00:23:45:67:89:1a"
+    veth:
+      peer: veth1.end"#;
+
+#[test]
+fn test_veth_change_peer() {
+    with_veth_iface(|| {
+        let conf: NetConf = serde_yaml::from_str(CHANGE_PEER_VETH1).unwrap();
+        assert!(conf.apply().unwrap()); // true for net state changed
+        let state = NetState::retrieve().unwrap();
+        let iface = &state.ifaces[IFACE_NAME];
+        assert_eq!(iface.state, IfaceState::Up);
+        assert_eq!(
+            iface.veth,
+            Some(VethInfo {
+                peer: "veth1.end".into(),
+            })
+        );
+    });
+}
+
+#[test]
+fn test_veth_apply_identical_conf() {
+    with_veth_iface(|| {
+        let conf: NetConf = serde_yaml::from_str(CREATE_VETH1).unwrap();
+        assert!(!conf.apply().unwrap()); // false for net state unchanged
         let state = NetState::retrieve().unwrap();
         let iface = &state.ifaces[IFACE_NAME];
         let iface_type = &iface.iface_type;

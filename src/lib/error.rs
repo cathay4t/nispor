@@ -9,6 +9,7 @@ pub enum ErrorKind {
     NetlinkError,
     NisporBug,
     PermissionDeny,
+    NotSupportYet,
 }
 
 impl std::fmt::Display for ErrorKind {

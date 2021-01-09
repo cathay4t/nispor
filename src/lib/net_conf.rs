@@ -1,5 +1,4 @@
 use crate::error::NisporError;
-use crate::ifaces::get_ifaces;
 use crate::ifaces::IfaceConf;
 use serde_derive::{Deserialize, Serialize};
 use tokio::runtime::Runtime;
@@ -10,22 +9,13 @@ pub struct NetConf {
 }
 
 impl NetConf {
-    // TODO: Return bool for whether change was made
-    pub fn apply(&self) -> Result<(), NisporError> {
-        let cur_ifaces = get_ifaces()?;
-        if let Some(ifaces) = &self.ifaces {
-            for iface in ifaces {
-                if let Some(cur_iface) = cur_ifaces.get(&iface.name) {
-                    Runtime::new()?.block_on(iface.apply(&cur_iface))?
-                } else {
-                    // TODO: Create new interface
-                    return Err(NisporError::invalid_argument(format!(
-                        "Interface {} not found!",
-                        iface.name
-                    )));
-                }
+    pub fn apply(&self) -> Result<bool, NisporError> {
+        let mut changed = false;
+        if let Some(iface_confs) = &self.ifaces {
+            for iface_conf in iface_confs {
+                changed |= Runtime::new()?.block_on(iface_conf.apply())?;
             }
         }
-        Ok(())
+        Ok(changed)
     }
 }
