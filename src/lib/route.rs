@@ -36,7 +36,8 @@ use crate::{
         parse_as_i32, parse_as_ipv4, parse_as_ipv6, parse_as_u16, parse_as_u32,
         AF_INET, AF_INET6,
     },
-    NisporError,
+    route_filter::apply_route_filter,
+    NetStateRouteFilter, NisporError,
 };
 
 const USER_HZ: u32 = 100;
@@ -434,10 +435,15 @@ const RTNH_F_UNRESOLVED: u8 = 32; /* The entry is unresolved (ipmr) */
 
 pub(crate) async fn get_routes(
     ifaces: &HashMap<String, Iface>,
+    filter: Option<&NetStateRouteFilter>,
 ) -> Result<Vec<Route>, NisporError> {
     let mut routes = Vec::new();
     let mut ifindex_to_name = HashMap::new();
-    let (connection, handle, _) = new_connection()?;
+    let (mut connection, handle, _) = new_connection()?;
+    if let Some(filter) = filter {
+        apply_route_filter(&mut connection, filter)?;
+    }
+
     tokio::spawn(connection);
 
     for iface in ifaces.values() {

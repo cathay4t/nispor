@@ -23,6 +23,7 @@ use crate::{
     mptcp::{get_mptcp, merge_mptcp_info, Mptcp},
     route::{get_routes, Route},
     route_rule::{get_route_rules, RouteRule},
+    NetStateRouteFilter,
 };
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
@@ -37,9 +38,15 @@ pub struct NetState {
 
 impl NetState {
     pub fn retrieve() -> Result<NetState, NisporError> {
+        NetState::retrieve_with_filter(&NetStateFilter::default())
+    }
+
+    pub fn retrieve_with_filter(
+        filter: &NetStateFilter,
+    ) -> Result<Self, NisporError> {
         let rt = runtime::Builder::new_current_thread().enable_io().build()?;
         let mut ifaces = rt.block_on(get_ifaces())?;
-        let routes = rt.block_on(get_routes(&ifaces))?;
+        let routes = rt.block_on(get_routes(&ifaces, filter.route.as_ref()))?;
         let rules = rt.block_on(get_route_rules())?;
         let mut mptcp = rt.block_on(get_mptcp())?;
         merge_mptcp_info(&mut ifaces, &mut mptcp);
@@ -52,4 +59,11 @@ impl NetState {
     }
 
     // TODO: autoconvert NetState to NetConf and provide apply() here
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Default)]
+#[non_exhaustive]
+pub struct NetStateFilter{
+    /// Filter routes
+    pub route: Option<NetStateRouteFilter>,
 }
