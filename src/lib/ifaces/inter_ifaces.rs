@@ -212,7 +212,11 @@ pub(crate) async fn create_ifaces(
                 }
             }
             Some(IfaceType::Bond) => {
-                BondConf::create(&handle, &iface.name).await?;
+                if let Some(bond_conf) = iface.bond.as_ref() {
+                    bond_conf.create(&handle, &iface.name).await?;
+                } else {
+                    BondConf::default().create(&handle, &iface.name).await?;
+                }
             }
             Some(IfaceType::Vlan) => {
                 if let Some(vlan_conf) = &iface.vlan {

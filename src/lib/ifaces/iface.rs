@@ -14,7 +14,7 @@ use crate::{
     ip::{fill_af_spec_inet_info, IpConf, Ipv4Info, Ipv6Info},
     mac::{mac_str_to_raw, parse_as_mac},
     mptcp::MptcpAddress,
-    NisporError, VfInfo,
+    BondConf, NisporError, VfInfo,
 };
 
 use super::{
@@ -587,6 +587,7 @@ pub struct IfaceConf {
     pub ipv4: Option<IpConf>,
     pub ipv6: Option<IpConf>,
     pub mac_address: Option<String>,
+    pub bond: Option<BondConf>,
     pub veth: Option<VethConf>,
     pub bridge: Option<BridgeConf>,
     pub vlan: Option<VlanConf>,

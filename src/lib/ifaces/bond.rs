@@ -4,13 +4,14 @@ use std::collections::HashMap;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use netlink_packet_route::link::nlas::{
-    self, Info, InfoBond, InfoBondPort, InfoData, InfoKind, Nla,
+    self, InfoBond, InfoBondPort, InfoData,
 };
-use rtnetlink::Handle;
+
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    ifaces::Iface, mac::parse_as_mac, ControllerType, IfaceType, NisporError,
+    ifaces::Iface, mac::parse_as_mac, ControllerType, IfaceType,
+    NisporError,
 };
 
 const BOND_MODE_ROUNDROBIN: u8 = 0;
@@ -21,7 +22,7 @@ const BOND_MODE_8023AD: u8 = 4;
 const BOND_MODE_TLB: u8 = 5;
 const BOND_MODE_ALB: u8 = 6;
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BondMode {
@@ -45,7 +46,7 @@ pub enum BondMode {
 
 impl Default for BondMode {
     fn default() -> Self {
-        Self::Unknown
+        Self::BalanceRoundRobin
     }
 }
 
@@ -60,6 +61,28 @@ impl From<u8> for BondMode {
             BOND_MODE_TLB => Self::BalanceTlb,
             BOND_MODE_ALB => Self::BalanceAlb,
             _ => Self::Other(d),
+        }
+    }
+}
+
+impl From<BondMode> for u8 {
+    fn from(v: BondMode) -> u8 {
+        match v {
+            BondMode::BalanceRoundRobin => BOND_MODE_ROUNDROBIN,
+            BondMode::ActiveBackup => BOND_MODE_ACTIVEBACKUP,
+            BondMode::BalanceXor => BOND_MODE_XOR,
+            BondMode::Broadcast => BOND_MODE_BROADCAST,
+            BondMode::Ieee8021AD => BOND_MODE_8023AD,
+            BondMode::BalanceTlb => BOND_MODE_TLB,
+            BondMode::BalanceAlb => BOND_MODE_ALB,
+            BondMode::Other(d) => d,
+            BondMode::Unknown => {
+                log::warn!(
+                    "Treating BondMode::Unknown as \
+                    BondMode::BalanceRoundRobin"
+                );
+                BOND_MODE_ROUNDROBIN
+            }
         }
     }
 }
@@ -732,32 +755,6 @@ fn primary_index_to_iface_name(iface_states: &mut HashMap<String, Iface>) {
                     bond_info.primary = Some(iface_name.clone());
                 }
             }
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
-#[non_exhaustive]
-pub struct BondConf {}
-
-impl BondConf {
-    pub(crate) async fn create(
-        handle: &Handle,
-        name: &str,
-    ) -> Result<(), NisporError> {
-        // Unlink bridge, rust-rtnetlink does not support bond creation out of
-        // box.
-        let mut req = handle.link().add();
-        let mutator = req.message_mut();
-        let info = Nla::Info(vec![Info::Kind(InfoKind::Bond)]);
-        mutator.nlas.push(info);
-        mutator.nlas.push(Nla::IfName(name.to_string()));
-        match req.execute().await {
-            Ok(_) => Ok(()),
-            Err(e) => Err(NisporError::bug(format!(
-                "Failed to create new bridge '{}': {}",
-                &name, e
-            ))),
         }
     }
 }

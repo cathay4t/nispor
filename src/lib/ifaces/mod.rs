@@ -18,6 +18,7 @@ mod veth;
 mod vlan;
 mod vrf;
 mod vxlan;
+mod conf;
 
 pub use crate::ifaces::bond::*;
 pub use crate::ifaces::bridge::*;
@@ -33,6 +34,7 @@ pub use crate::ifaces::veth::*;
 pub use crate::ifaces::vlan::*;
 pub use crate::ifaces::vrf::*;
 pub use crate::ifaces::vxlan::*;
+pub use self::conf::*;
 
 pub(crate) use crate::ifaces::inter_ifaces::{
     change_ifaces, create_ifaces, delete_ifaces, get_iface_name2index,
