@@ -136,41 +136,47 @@ pub struct BridgeInfo {
     pub multicast_mld_version: Option<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 #[derive(Default)]
 pub enum BridgePortStpState {
+    #[default]
     Disabled,
     Listening,
     Learning,
     Forwarding,
     Blocking,
     Other(u8),
-    #[default]
-    Unknown,
 }
 
-const BR_STATE_DISABLED: u8 = 0;
-const BR_STATE_LISTENING: u8 = 1;
-const BR_STATE_LEARNING: u8 = 2;
-const BR_STATE_FORWARDING: u8 = 3;
-const BR_STATE_BLOCKING: u8 = 4;
-
-impl From<u8> for BridgePortStpState {
-    fn from(d: u8) -> Self {
+impl From<link::BridgePortState> for BridgePortStpState {
+    fn from(d: link::BridgePortState) -> Self {
         match d {
-            BR_STATE_DISABLED => Self::Disabled,
-            BR_STATE_LISTENING => Self::Listening,
-            BR_STATE_LEARNING => Self::Learning,
-            BR_STATE_FORWARDING => Self::Forwarding,
-            BR_STATE_BLOCKING => Self::Blocking,
-            _ => Self::Other(d),
+            link::BridgePortState::Disabled => Self::Disabled,
+            link::BridgePortState::Listening => Self::Listening,
+            link::BridgePortState::Learning => Self::Learning,
+            link::BridgePortState::Forwarding => Self::Forwarding,
+            link::BridgePortState::Blocking => Self::Blocking,
+            _ => Self::Other(d.into()),
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+impl From<BridgePortStpState> for link::BridgePortState {
+    fn from(v: BridgePortStpState) -> Self {
+        match v {
+            BridgePortStpState::Disabled => Self::Disabled,
+            BridgePortStpState::Listening => Self::Listening,
+            BridgePortStpState::Learning => Self::Learning,
+            BridgePortStpState::Forwarding => Self::Forwarding,
+            BridgePortStpState::Blocking => Self::Blocking,
+            BridgePortStpState::Other(d) => Self::Other(d),
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 #[derive(Default)]
@@ -229,8 +235,8 @@ pub struct BridgePortInfo {
     pub multicast_fast_leave: bool,
     pub learning: bool,
     pub unicast_flood: bool,
-    pub proxyarp: bool,
-    pub proxyarp_wifi: bool,
+    pub proxy_arp: bool,
+    pub proxy_arp_wifi: bool,
     pub designated_root: String,
     pub designated_bridge: String,
     pub designated_port: u16,
@@ -293,7 +299,7 @@ pub(crate) fn get_bridge_port_info(
 
     for nla in nlas {
         match nla {
-            InfoBridgePort::State(d) => ret.stp_state = u8::from(*d).into(),
+            InfoBridgePort::State(d) => ret.stp_state = (*d).into(),
             InfoBridgePort::Priority(d) => ret.stp_priority = *d,
             InfoBridgePort::Cost(d) => ret.stp_path_cost = *d,
             InfoBridgePort::HairpinMode(d) => ret.hairpin_mode = *d,
@@ -302,8 +308,8 @@ pub(crate) fn get_bridge_port_info(
             InfoBridgePort::FastLeave(d) => ret.multicast_fast_leave = *d,
             InfoBridgePort::Learning(d) => ret.learning = *d,
             InfoBridgePort::UnicastFlood(d) => ret.unicast_flood = *d,
-            InfoBridgePort::ProxyARP(d) => ret.proxyarp = *d,
-            InfoBridgePort::ProxyARPWifi(d) => ret.proxyarp_wifi = *d,
+            InfoBridgePort::ProxyARP(d) => ret.proxy_arp = *d,
+            InfoBridgePort::ProxyARPWifi(d) => ret.proxy_arp_wifi = *d,
             InfoBridgePort::RootId(d) => {
                 ret.designated_root = parse_bridge_id(d)?
             }

@@ -153,7 +153,7 @@ impl BridgeConf {
                 builder = builder.mcast_vlan_snooping(v);
             }
             if let Some(v) = br_conf.mcast_router.as_ref() {
-                builder = builder.mcast_router(v.clone().into());
+                builder = builder.mcast_router((*v).into());
             }
             if let Some(v) = br_conf.mcast_query_use_ifaddr {
                 builder = builder.mcast_query_use_ifaddr(v);

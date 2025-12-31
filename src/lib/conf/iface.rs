@@ -12,9 +12,9 @@ use super::{
     base_iface::apply_base_link_changes, ip::change_ip_layer,
 };
 use crate::{
-    AltNameConf, BondConf, BondPortConf, BridgeConf, DummyConf, ErrorKind,
-    Iface, IfaceState, IfaceType, IpConf, NetStateIfaceFilter, NisporError,
-    VethConf, VlanConf,
+    AltNameConf, BondConf, BondPortConf, BridgeConf, BridgePortConf, DummyConf,
+    ErrorKind, Iface, IfaceState, IfaceType, IpConf, NetStateIfaceFilter,
+    NisporError, VethConf, VlanConf,
 };
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
@@ -39,7 +39,10 @@ pub struct IfaceConf {
     pub vlan: Option<VlanConf>,
     #[serde(alias = "link-aggregation")]
     pub bond: Option<BondConf>,
+    #[serde(alias = "bond_port")]
     pub bond_port: Option<BondPortConf>,
+    #[serde(alias = "bridge_port")]
+    pub bridge_port: Option<BridgePortConf>,
 }
 
 impl IfaceConf {
@@ -259,7 +262,7 @@ async fn get_cur_iface(
         iface_filter.include_ip_address = true;
     }
     if let Ok(mut cur_ifaces) =
-        get_ifaces_with_handle(&handle, Some(&iface_filter)).await
+        get_ifaces_with_handle(handle, Some(&iface_filter)).await
     {
         cur_ifaces.remove(&des_iface.name)
     } else {
@@ -276,6 +279,14 @@ async fn change_port_config(
         send_change_netlink(
             handle,
             bond_port_conf.gen_link_msg(cur_iface),
+            des_iface.name.as_str(),
+        )
+        .await?;
+    }
+    if let Some(bridge_port_conf) = des_iface.bridge_port.as_ref() {
+        send_change_netlink(
+            handle,
+            bridge_port_conf.gen_link_msg(cur_iface),
             des_iface.name.as_str(),
         )
         .await?;
