@@ -286,10 +286,40 @@ async fn change_port_config(
     if let Some(bridge_port_conf) = des_iface.bridge_port.as_ref() {
         send_change_netlink(
             handle,
-            bridge_port_conf.gen_link_msg(cur_iface),
+            bridge_port_conf.gen_port_conf_link_msg(cur_iface),
             des_iface.name.as_str(),
         )
         .await?;
+        if let Some(msg) =
+            bridge_port_conf.gen_port_vlan_conf_link_msg(cur_iface)
+        {
+            log::trace!("Changing interface by netlink message {msg:?}");
+            handle.link().set(msg).execute().await.map_err(|e| {
+                NisporError::new(
+                    ErrorKind::NisporBug,
+                    format!(
+                        "Failed to change bridge port vlan of interface {}: \
+                         {e}",
+                        des_iface.name
+                    ),
+                )
+            })?;
+        }
+    }
+    if let Some(br_conf) = des_iface.bridge.as_ref() {
+        if let Some(msg) = br_conf.gen_vlan_conf_link_msg(cur_iface) {
+            log::trace!("Changing interface by netlink message {msg:?}");
+            handle.link().set(msg).execute().await.map_err(|e| {
+                NisporError::new(
+                    ErrorKind::NisporBug,
+                    format!(
+                        "Failed to change bridge port vlan of interface {}: \
+                         {e}",
+                        des_iface.name
+                    ),
+                )
+            })?;
+        }
     }
     Ok(())
 }

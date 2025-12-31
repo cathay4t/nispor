@@ -1,14 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use rtnetlink::{LinkBridge, LinkMessageBuilder};
+use rtnetlink::{
+    packet_route::link::{BridgeVlanInfoFlags, LinkMessage},
+    LinkBridge, LinkBridgeVlan, LinkMessageBuilder,
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    BridgeMulticastRouterType, BridgeStpState, IfaceConf, VlanProtocol,
+    BridgeMulticastRouterType, BridgeStpState, BridgeVlanEntry, Iface,
+    IfaceConf, VlanProtocol,
 };
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 #[non_exhaustive]
+#[serde(deny_unknown_fields)]
 pub struct BridgeConf {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ageing_time: Option<u32>,
@@ -86,6 +91,9 @@ pub struct BridgeConf {
     pub nf_call_arptables: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mdb_offload_fail_notification: Option<bool>,
+    /// VLANs of the bridge itself
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub vlans: Option<Vec<BridgeVlanEntry>>,
 }
 
 impl BridgeConf {
@@ -212,5 +220,36 @@ impl BridgeConf {
         }
 
         builder
+    }
+
+    pub(crate) fn gen_vlan_conf_link_msg(
+        &self,
+        cur_iface: &Iface,
+    ) -> Option<LinkMessage> {
+        if let Some(vlans) = self.vlans.as_ref() {
+            let mut builder =
+                LinkBridgeVlan::new(cur_iface.index).bridge_self();
+            for vlan in vlans {
+                let mut flag = BridgeVlanInfoFlags::empty();
+                if vlan.is_pvid {
+                    flag |= BridgeVlanInfoFlags::Pvid;
+                }
+                if vlan.is_egress_untagged {
+                    flag |= BridgeVlanInfoFlags::Untagged;
+                }
+                if let Some(vid) = vlan.vid {
+                    builder = builder.vlan(vid, flag);
+                } else if let Some((vid_start, vid_end)) =
+                    vlan.vid_range.as_ref()
+                {
+                    builder = builder
+                        .vlan_range_start(*vid_start, flag)
+                        .vlan_range_end(*vid_end, flag);
+                }
+            }
+            Some(builder.build())
+        } else {
+            None
+        }
     }
 }

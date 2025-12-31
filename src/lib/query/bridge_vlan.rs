@@ -9,12 +9,15 @@ use crate::{Iface, IfaceType, NisporError};
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Default)]
 #[non_exhaustive]
+#[serde(deny_unknown_fields)]
 pub struct BridgeVlanEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vid: Option<u16>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub vid_range: Option<(u16, u16)>,
+    #[serde(default)]
     pub is_pvid: bool, // is PVID and ingress untagged
+    #[serde(default)]
     pub is_egress_untagged: bool,
 }
 
