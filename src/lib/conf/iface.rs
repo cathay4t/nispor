@@ -1,10 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use rtnetlink::{
-    packet_core::{NLM_F_ACK, NLM_F_REQUEST},
-    packet_route::link::LinkMessage,
-    LinkUnspec,
-};
+use rtnetlink::{packet_route::link::LinkMessage, LinkUnspec};
 use serde::{Deserialize, Serialize};
 
 use super::{
@@ -232,24 +228,12 @@ async fn send_change_netlink(
     iface_name: &str,
 ) -> Result<(), NisporError> {
     log::trace!("Changing interface by netlink message {msg:?}");
-    handle
-        .link()
-        .add(msg)
-        // Even we are changing existing interface, kernel still require us to
-        // use `RTM_NEWLINK`. The `RTM_SETLINK` is only used for bridge VLAN
-        // filtering.
-        //
-        // TODO: Use `rtnetlink::LinkHandler::change()` once they
-        // released.
-        .set_flags(NLM_F_ACK | NLM_F_REQUEST)
-        .execute()
-        .await
-        .map_err(|e| {
-            NisporError::new(
-                ErrorKind::NisporBug,
-                format!("Failed to change interface {iface_name}: {e}"),
-            )
-        })
+    handle.link().set_port(msg).execute().await.map_err(|e| {
+        NisporError::new(
+            ErrorKind::NisporBug,
+            format!("Failed to change interface {iface_name}: {e}"),
+        )
+    })
 }
 
 async fn get_cur_iface(
@@ -291,15 +275,34 @@ async fn change_port_config(
         )
         .await?;
         if let Some(msg) =
-            bridge_port_conf.gen_port_vlan_conf_link_msg(cur_iface)
+            bridge_port_conf.gen_del_port_vlan_conf_link_msg(cur_iface)
         {
-            log::trace!("Changing interface by netlink message {msg:?}");
+            log::trace!("Remove bridge VLAN via netlink message {msg:?}");
+            handle
+                .link()
+                .del_with_message(msg)
+                .execute()
+                .await
+                .map_err(|e| {
+                    NisporError::new(
+                        ErrorKind::NisporBug,
+                        format!(
+                            "Failed to remove bridge port vlan of interface \
+                             {}: {e}",
+                            des_iface.name
+                        ),
+                    )
+                })?;
+        }
+        if let Some(msg) =
+            bridge_port_conf.gen_add_port_vlan_conf_link_msg(cur_iface)
+        {
+            log::trace!("Set bridge VLAN via netlink message {msg:?}");
             handle.link().set(msg).execute().await.map_err(|e| {
                 NisporError::new(
                     ErrorKind::NisporBug,
                     format!(
-                        "Failed to change bridge port vlan of interface {}: \
-                         {e}",
+                        "Failed to set bridge port vlan of interface {}: {e}",
                         des_iface.name
                     ),
                 )
@@ -307,14 +310,31 @@ async fn change_port_config(
         }
     }
     if let Some(br_conf) = des_iface.bridge.as_ref() {
-        if let Some(msg) = br_conf.gen_vlan_conf_link_msg(cur_iface) {
-            log::trace!("Changing interface by netlink message {msg:?}");
+        if let Some(msg) = br_conf.gen_del_vlan_conf_link_msg(cur_iface) {
+            log::trace!("Remove bridge VLAN via netlink message {msg:?}");
+            handle
+                .link()
+                .del_with_message(msg)
+                .execute()
+                .await
+                .map_err(|e| {
+                    NisporError::new(
+                        ErrorKind::NisporBug,
+                        format!(
+                            "Failed to remove bridge port vlan of interface \
+                             {}: {e}",
+                            des_iface.name
+                        ),
+                    )
+                })?;
+        }
+        if let Some(msg) = br_conf.gen_add_vlan_conf_link_msg(cur_iface) {
+            log::trace!("Set bridge VLAN via netlink message {msg:?}");
             handle.link().set(msg).execute().await.map_err(|e| {
                 NisporError::new(
                     ErrorKind::NisporBug,
                     format!(
-                        "Failed to change bridge port vlan of interface {}: \
-                         {e}",
+                        "Failed to set bridge port vlan of interface {}: {e}",
                         des_iface.name
                     ),
                 )

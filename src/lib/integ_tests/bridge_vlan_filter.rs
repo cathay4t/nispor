@@ -42,19 +42,7 @@ static BR_SELF_VLAN: &str = r#"
 #[test]
 fn test_get_br_vlan_filter_iface_yaml() {
     with_br_with_vlan_filter_iface(|| {
-        let mut state = NetState::retrieve().unwrap();
-        let port1 = state.ifaces.get_mut(PORT1_NAME).unwrap();
-        if let Some(ref mut port_info) = port1.bridge_port {
-            port_info.forward_delay_timer = 0;
-            // Below values are not supported by Github CI Ubuntu 20.04
-            port_info.mrp_in_open = None;
-        }
-        let port2 = state.ifaces.get_mut(PORT2_NAME).unwrap();
-        if let Some(ref mut port_info) = port2.bridge_port {
-            port_info.forward_delay_timer = 0;
-            // Below values are not supported by Github CI Ubuntu 20.04
-            port_info.mrp_in_open = None;
-        }
+        let state = NetState::retrieve().unwrap();
         let iface = state.ifaces.get(IFACE_NAME).unwrap();
         if let Some(bridge_info) = &iface.bridge {
             assert_eq!(bridge_info.vlan_filtering, Some(true))
@@ -136,4 +124,109 @@ where
     let net_conf: NetConf = serde_yaml::from_str(BRIDGE_DELETE_YML).unwrap();
     net_conf.apply().unwrap();
     assert!(result.is_ok())
+}
+
+const BRIDGE_VLAN_MODIFY_YML: &str = r#"---
+interfaces:
+  - name: br0
+    type: bridge
+    bridge:
+      stp_state: disabled
+      vlan_filtering: true
+      vlans:
+      - vid: 1
+        is_pvid: false
+        is_egress_untagged: true
+      - vid: 11
+        is_pvid: true
+        is_egress_untagged: true
+        remove: true
+      - vid: 21
+        is_pvid: true
+        is_egress_untagged: true
+  - name: dummy1
+    type: dummy
+    state: up
+    controller: br0
+    bridge-port:
+      vlans:
+      - vid: 1
+        is_pvid: false
+        is_egress_untagged: true
+      - vid: 10
+        is_pvid: true
+        is_egress_untagged: true
+        remove: true
+      - vid: 20
+        is_pvid: true
+        is_egress_untagged: true
+  - name: dummy2
+    type: dummy
+    state: up
+    controller: br0
+    bridge-port:
+      vlans:
+        - vid: 1
+          is_pvid: true
+          is_egress_untagged: true
+        - vid_range:
+          - 2
+          - 4094
+          is_pvid: false
+          is_egress_untagged: false
+          remove: true
+        - vid_range:
+          - 4
+          - 4094
+          is_pvid: false
+          is_egress_untagged: false"#;
+
+const NEW_PORT1_BRIDGE_INFO: &str = r#"---
+vlans:
+  - vid: 1
+    is_pvid: false
+    is_egress_untagged: true
+  - vid: 20
+    is_pvid: true
+    is_egress_untagged: true"#;
+
+const NEW_PORT2_BRIDGE_INFO: &str = r#"---
+vlans:
+  - vid: 1
+    is_pvid: true
+    is_egress_untagged: true
+  - vid_range:
+      - 4
+      - 4094
+    is_pvid: false
+    is_egress_untagged: false"#;
+
+static NEW_BR_SELF_VLAN: &str = r#"
+  - vid: 1
+    is_pvid: false
+    is_egress_untagged: true
+  - vid: 21
+    is_pvid: true
+    is_egress_untagged: true"#;
+
+#[test]
+fn test_modify_bridge_vlan() {
+    with_br_with_vlan_filter_iface(|| {
+        let net_conf: NetConf =
+            serde_yaml::from_str(BRIDGE_VLAN_MODIFY_YML).unwrap();
+        net_conf.apply().unwrap();
+
+        let state = NetState::retrieve().unwrap();
+
+        let iface = &state.ifaces[IFACE_NAME];
+        assert_value_match(
+            NEW_BR_SELF_VLAN,
+            iface.bridge_vlan.as_ref().unwrap(),
+        );
+
+        let port1 = &state.ifaces[PORT1_NAME];
+        let port2 = &state.ifaces[PORT2_NAME];
+        assert_value_match(NEW_PORT1_BRIDGE_INFO, &port1.bridge_port);
+        assert_value_match(NEW_PORT2_BRIDGE_INFO, &port2.bridge_port);
+    })
 }

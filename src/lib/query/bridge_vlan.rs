@@ -19,6 +19,9 @@ pub struct BridgeVlanEntry {
     pub is_pvid: bool, // is PVID and ingress untagged
     #[serde(default)]
     pub is_egress_untagged: bool,
+    /// Only for apply action
+    #[serde(default, skip_serializing)]
+    pub remove: bool,
 }
 
 pub(crate) fn parse_bridge_vlan_info(
@@ -104,6 +107,7 @@ fn merge_vlan_range(
                         vid_range: Some((start, k_vlan.vid)),
                         is_pvid: k_vlan.is_pvid,
                         is_egress_untagged: k_vlan.is_egress_untagged,
+                        ..Default::default()
                     })
                 } else {
                     log::warn!(
@@ -120,6 +124,7 @@ fn merge_vlan_range(
                     vid_range: None,
                     is_pvid: k_vlan.is_pvid,
                     is_egress_untagged: k_vlan.is_egress_untagged,
+                    ..Default::default()
                 });
                 vlan_start = None;
             }

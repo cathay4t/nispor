@@ -1,9 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-use rtnetlink::{
-    packet_route::link::{BridgeVlanInfoFlags, LinkMessage},
-    LinkBridgePort, LinkBridgeVlan,
-};
+use rtnetlink::{packet_route::link::LinkMessage, LinkBridgePort};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -152,35 +149,5 @@ impl BridgePortConf {
         }
 
         builder.build()
-    }
-
-    pub(crate) fn gen_port_vlan_conf_link_msg(
-        &self,
-        cur_iface: &Iface,
-    ) -> Option<LinkMessage> {
-        if let Some(vlans) = self.vlans.as_ref() {
-            let mut builder = LinkBridgeVlan::new(cur_iface.index);
-            for vlan in vlans {
-                let mut flag = BridgeVlanInfoFlags::empty();
-                if vlan.is_pvid {
-                    flag |= BridgeVlanInfoFlags::Pvid;
-                }
-                if vlan.is_egress_untagged {
-                    flag |= BridgeVlanInfoFlags::Untagged;
-                }
-                if let Some(vid) = vlan.vid {
-                    builder = builder.vlan(vid, flag);
-                } else if let Some((vid_start, vid_end)) =
-                    vlan.vid_range.as_ref()
-                {
-                    builder = builder
-                        .vlan_range_start(*vid_start, flag)
-                        .vlan_range_end(*vid_end, flag);
-                }
-            }
-            Some(builder.build())
-        } else {
-            None
-        }
     }
 }
